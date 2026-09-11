@@ -33,8 +33,6 @@ DECLARE
     trigger_record         record;
     permission_record      record;
     sequence_record        record;
-    sequence_last_value    bigint;
-    sequence_is_called     boolean;
     comment_record         record;
     grantee_name           text;
 BEGIN
@@ -118,11 +116,6 @@ BEGIN
            AND d.deptype IN ('a', 'i')
          ORDER BY seqn.nspname, seq.relname
     LOOP
-        EXECUTE format(
-            'SELECT last_value, is_called FROM %I.%I',
-            sequence_record.seqschema, sequence_record.seqname
-        ) INTO sequence_last_value, sequence_is_called;
-
         v_rename_sequences := v_rename_sequences || format(
             E'\nALTER SEQUENCE %I.%I RENAME TO %I;',
             sequence_record.seqschema, sequence_record.seqname,
@@ -148,10 +141,9 @@ BEGIN
             );
         END IF;
         v_restore_sequences := v_restore_sequences || format(
-            E'\nSELECT setval(%L::regclass, %s, %s);',
+            E'\nSELECT setval(%L::regclass, old_sequence.last_value, old_sequence.is_called)\n  FROM %I.%I AS old_sequence;',
             format('%I.%I', sequence_record.seqschema, sequence_record.seqname),
-            sequence_last_value,
-            CASE WHEN sequence_is_called THEN 'true' ELSE 'false' END
+            sequence_record.seqschema, sequence_record.seqname || '_old'
         );
     END LOOP;
 
@@ -593,7 +585,7 @@ BEGIN
         v_indexes := v_indexes || E'\n' || index_record.definition || ';';
     END LOOP;
     v_ddl := format(
-        E'BEGIN;%s%s%s%s\n\nALTER TABLE %I.%I RENAME TO %I;%s\n\nCREATE TABLE %I.%I (\n%s\n);\n\nINSERT INTO %I.%I\nSELECT %s\n  FROM %I.%I;\n\nDROP TABLE %I.%I;%s%s%s%s%s%s%s%s%s\n\nCOMMIT;',
+        E'BEGIN;%s%s%s%s\n\nALTER TABLE %I.%I RENAME TO %I;%s\n\nCREATE TABLE %I.%I (\n%s\n);\n\nINSERT INTO %I.%I\nSELECT %s\n  FROM %I.%I;%s\n\nDROP TABLE %I.%I;%s%s%s%s%s%s%s%s\n\nCOMMIT;',
         v_locks, v_drop_views, v_drop_fks,
         v_rename_sequences,
         v_schema, v_relname, v_relname || '_old',
@@ -601,8 +593,9 @@ BEGIN
         v_schema, v_relname, v_cols,
         v_schema, v_relname, v_select,
         v_schema, v_relname || '_old',
+        v_restore_sequences,
         v_schema, v_relname || '_old',
-        v_comments, v_restore_sequences, v_constraints, v_foreign_keys, v_indexes,
+        v_comments, v_constraints, v_foreign_keys, v_indexes,
         v_create_views, v_view_comments, v_create_triggers, v_permissions
     );
 
