@@ -11,3 +11,6 @@ Some of this code is based on https://github.com/rogerwelin/pg_column_tetris
 ```sql
 select suggest_rewrite('mytable');
 ```
+
+## License
+MIT
