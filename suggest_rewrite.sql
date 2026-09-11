@@ -265,8 +265,8 @@ BEGIN
     -- Find views that depend directly or indirectly on the target.  They are
     -- dropped deepest-first and recreated shallowest-first.
     FOR view_record IN
-        WITH RECURSIVE dependent_views(oid, depth) AS (
-            SELECT v.oid, 1
+        WITH RECURSIVE dependent_views(oid, depth, path) AS (
+            SELECT v.oid, 1, ARRAY[v.oid]
               FROM pg_class v
               JOIN pg_rewrite r ON r.ev_class = v.oid
               JOIN pg_depend d
@@ -275,8 +275,8 @@ BEGIN
                AND d.refclassid = 'pg_class'::regclass
                AND d.refobjid = v_oid
              WHERE v.relkind = 'v'
-            UNION
-            SELECT v.oid, dv.depth + 1
+            UNION ALL
+            SELECT v.oid, dv.depth + 1, dv.path || v.oid
               FROM dependent_views dv
               JOIN pg_rewrite r ON true
               JOIN pg_depend d
@@ -286,6 +286,7 @@ BEGIN
                AND d.refobjid = dv.oid
               JOIN pg_class v ON v.oid = r.ev_class
              WHERE v.relkind = 'v'
+               AND NOT (v.oid = ANY (dv.path))
         )
         SELECT v.oid, n.nspname AS schemaname, v.relname,
                max(dv.depth) AS depth,
@@ -308,8 +309,8 @@ BEGIN
     END LOOP;
 
     FOR view_record IN
-        WITH RECURSIVE dependent_views(oid, depth) AS (
-            SELECT v.oid, 1
+        WITH RECURSIVE dependent_views(oid, depth, path) AS (
+            SELECT v.oid, 1, ARRAY[v.oid]
               FROM pg_class v
               JOIN pg_rewrite r ON r.ev_class = v.oid
               JOIN pg_depend d
@@ -318,8 +319,8 @@ BEGIN
                AND d.refclassid = 'pg_class'::regclass
                AND d.refobjid = v_oid
              WHERE v.relkind = 'v'
-            UNION
-            SELECT v.oid, dv.depth + 1
+            UNION ALL
+            SELECT v.oid, dv.depth + 1, dv.path || v.oid
               FROM dependent_views dv
               JOIN pg_rewrite r ON true
               JOIN pg_depend d
@@ -329,6 +330,7 @@ BEGIN
                AND d.refobjid = dv.oid
               JOIN pg_class v ON v.oid = r.ev_class
              WHERE v.relkind = 'v'
+               AND NOT (v.oid = ANY (dv.path))
         )
         SELECT v.oid, n.nspname AS schemaname, v.relname,
                max(dv.depth) AS depth,
@@ -372,8 +374,8 @@ BEGIN
     -- either object.  PostgreSQL stores permissions on their parent relation,
     -- not on trigger objects themselves.
     FOR trigger_record IN
-        WITH RECURSIVE dependent_views(oid) AS (
-            SELECT v.oid
+        WITH RECURSIVE dependent_views(oid, path) AS (
+            SELECT v.oid, ARRAY[v.oid]
               FROM pg_class v
               JOIN pg_rewrite r ON r.ev_class = v.oid
               JOIN pg_depend d
@@ -382,8 +384,8 @@ BEGIN
                AND d.refclassid = 'pg_class'::regclass
                AND d.refobjid = v_oid
              WHERE v.relkind = 'v'
-            UNION
-            SELECT v.oid
+            UNION ALL
+            SELECT v.oid, dv.path || v.oid
               FROM dependent_views dv
               JOIN pg_rewrite r ON true
               JOIN pg_depend d
@@ -393,6 +395,7 @@ BEGIN
                AND d.refobjid = dv.oid
               JOIN pg_class v ON v.oid = r.ev_class
              WHERE v.relkind = 'v'
+               AND NOT (v.oid = ANY (dv.path))
         )
         SELECT t.oid, t.tgname, t.tgrelid,
                n.nspname AS schemaname, c.relname,
@@ -416,8 +419,8 @@ BEGIN
 
     -- Save relation owners and ACL entries for the target and dependent views.
     FOR permission_record IN
-        WITH RECURSIVE dependent_views(oid) AS (
-            SELECT v.oid
+        WITH RECURSIVE dependent_views(oid, path) AS (
+            SELECT v.oid, ARRAY[v.oid]
               FROM pg_class v
               JOIN pg_rewrite r ON r.ev_class = v.oid
               JOIN pg_depend d
@@ -426,8 +429,8 @@ BEGIN
                AND d.refclassid = 'pg_class'::regclass
                AND d.refobjid = v_oid
              WHERE v.relkind = 'v'
-            UNION
-            SELECT v.oid
+            UNION ALL
+            SELECT v.oid, dv.path || v.oid
               FROM dependent_views dv
               JOIN pg_rewrite r ON true
               JOIN pg_depend d
@@ -437,6 +440,7 @@ BEGIN
                AND d.refobjid = dv.oid
               JOIN pg_class v ON v.oid = r.ev_class
              WHERE v.relkind = 'v'
+               AND NOT (v.oid = ANY (dv.path))
         ), object_relations(oid) AS (
             SELECT v_oid
             UNION
@@ -459,8 +463,8 @@ BEGIN
     END LOOP;
 
     FOR permission_record IN
-        WITH RECURSIVE dependent_views(oid) AS (
-            SELECT v.oid
+        WITH RECURSIVE dependent_views(oid, path) AS (
+            SELECT v.oid, ARRAY[v.oid]
               FROM pg_class v
               JOIN pg_rewrite r ON r.ev_class = v.oid
               JOIN pg_depend d
@@ -469,8 +473,8 @@ BEGIN
                AND d.refclassid = 'pg_class'::regclass
                AND d.refobjid = v_oid
              WHERE v.relkind = 'v'
-            UNION
-            SELECT v.oid
+            UNION ALL
+            SELECT v.oid, dv.path || v.oid
               FROM dependent_views dv
               JOIN pg_rewrite r ON true
               JOIN pg_depend d
@@ -480,6 +484,7 @@ BEGIN
                AND d.refobjid = dv.oid
               JOIN pg_class v ON v.oid = r.ev_class
              WHERE v.relkind = 'v'
+               AND NOT (v.oid = ANY (dv.path))
         ), object_relations(oid) AS (
             SELECT v_oid
             UNION
