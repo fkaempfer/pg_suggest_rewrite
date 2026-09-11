@@ -2,7 +2,7 @@
 
 *Warning*: The code is AI generated, review any output carefully
 
-This function generates SQL to rewrite column order of a table
+This function generates SQL to rewrite column order of a table. Though for complex usages it is often better to dump the database and recreate it.
 
 Some of this code is based on https://github.com/rogerwelin/pg_column_tetris
 
