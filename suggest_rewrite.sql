@@ -21,7 +21,6 @@ DECLARE
     v_indexes             text := '';
     v_drop_views          text := '';
     v_create_views        text := '';
-    v_drop_triggers       text := '';
     v_create_triggers     text := '';
     v_permissions         text := '';
     v_comments            text := '';
@@ -408,11 +407,6 @@ BEGIN
          ORDER BY CASE WHEN t.tgrelid = v_oid THEN 0 ELSE 1 END,
                   n.nspname, c.relname, t.tgname
     LOOP
-        v_drop_triggers := v_drop_triggers || format(
-            E'\nDROP TRIGGER %I ON %I.%I;',
-            trigger_record.tgname, trigger_record.schemaname,
-            trigger_record.relname
-        );
         v_create_triggers := v_create_triggers || E'\n' ||
             trigger_record.definition || ';';
     END LOOP;
@@ -599,8 +593,8 @@ BEGIN
         v_indexes := v_indexes || E'\n' || index_record.definition || ';';
     END LOOP;
     v_ddl := format(
-        E'BEGIN;%s%s%s%s%s\n\nALTER TABLE %I.%I RENAME TO %I;%s\n\nCREATE TABLE %I.%I (\n%s\n);\n\nINSERT INTO %I.%I\nSELECT %s\n  FROM %I.%I;\n\nDROP TABLE %I.%I;%s%s%s%s%s%s%s%s%s\n\nCOMMIT;',
-        v_locks, v_drop_triggers, v_drop_views, v_drop_fks,
+        E'BEGIN;%s%s%s%s\n\nALTER TABLE %I.%I RENAME TO %I;%s\n\nCREATE TABLE %I.%I (\n%s\n);\n\nINSERT INTO %I.%I\nSELECT %s\n  FROM %I.%I;\n\nDROP TABLE %I.%I;%s%s%s%s%s%s%s%s%s\n\nCOMMIT;',
+        v_locks, v_drop_views, v_drop_fks,
         v_rename_sequences,
         v_schema, v_relname, v_relname || '_old',
         v_create_sequences,
